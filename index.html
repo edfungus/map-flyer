@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name='viewport', content='width=device-width, user-scalable=no'>
+    <meta name="apple-mobile-web-app-capable", content="yes">
+    <meta http-equiv="Cache-control", content="public">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <style type="text/css">
+      @import url(https://fonts.googleapis.com/css?family=Lato:400,300,700);
+      html, body { height: 100%; margin: 0; padding: 0; font-family: 'Lato', sans-serif;}
+      #map { height: 100%; }
+      #welcome {
+        height: 100%;
+        background-color: rgba(0,0,0,.5);
+        position: absolute;
+        top: 0;
+        width: 100%;
+        color: white;
+        padding: 100px 20px 20px 10px;
+        box-sizing: border-box;
+        text-align: center;
+      }
+      #controller {
+        display: none;
+      }
+      .message {
+        font-size: 18px;
+        font-weight: 100;
+        margin-bottom: 20px;
+      }
+      #deviceKey {
+        border: none;
+        background-color: rgba(255,255,255,.1);
+        padding: 5px;
+        font-size: 24px;
+        border-bottom: 3px solid rgba(255,255,255,.5);
+        color: white;
+      }
+      input:focus{
+          outline: none;
+      }
+      .option {
+        margin: 10px;
+        cursor: pointer;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="welcome">
+      <div id="start">
+        <div class="message">Use your phone to control the map on your computer. Select which one this device will be to start! <br/> Use the same key on both devices.</div>
+        <input id="deviceKey" placeholder="Your Key"></input>
+        <div id="keyError" class="message hidden">Please enter some key above!</div>
+        <div id="becomeMap" class="option">I will be the map <i class="fa fa-chevron-right"></i></div>
+        <div id="becomeControl" class="option">I will be the controller <i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div id="controller">
+        <div class="message">Move your phone around to navigate the map!</div>
+        <div>
+          <span>Plane: </span>
+          <span id="alpha"></span>
+        </div>
+        <div>
+          <span>Pitch: </span>
+          <span id="beta"></span>
+        </div>
+        <div>
+          <span>Yaw: </span>
+          <span id="gamma"></span>
+        </div>
+        <div id="setGyro" class="option">Reset zero at current position</div>
+      </div>
+    </div>
+    <script type="text/javascript">
+
+    document.addEventListener( 'DOMContentLoaded', function () {
+      var map;
+      var coords = {lat: -34.397, lng: 150.644};
+      var client;
+      var isController;
+      var deviceKey;
+      var gyroBase = {};
+      var digits = 5;
+
+
+      document.getElementById("becomeMap").addEventListener("click", function(){
+        if(document.getElementById("deviceKey").value != ""){
+          initMap();
+          isController = false;
+          deviceKey = document.getElementById("deviceKey").value;
+          init();
+          document.getElementById("welcome").style.display = "none";
+        } else {
+          document.getElementById("keyError").style.display = "block";
+        }
+      });
+      document.getElementById("becomeControl").addEventListener("click", function(){
+        if(document.getElementById("deviceKey").value != ""){
+          isController = true;
+          deviceKey = document.getElementById("deviceKey").value;
+          init();
+          document.getElementById("start").style.display = "none";
+          document.getElementById("controller").style.display = "block";
+          setGyroBase();
+        } else {
+          document.getElementById("keyError").style.display = "block";
+        }
+      });
+      document.getElementById("setGyro").addEventListener("click", function(){
+        setGyroBase();
+      });
+
+      function init(){
+        client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
+
+        client.on('connect', function () {
+          if(!isController){
+            client.subscribe("mqttMapDemo-" + deviceKey);
+          }
+          console.log("connected");
+        });
+        client.on('message', function (topic, message) {
+          if(!isController){
+            var messageString = message.toString();
+            var newCoords = JSON.parse(messageString);
+            var center = new google.maps.LatLng(newCoords.lat, newCoords.lng);
+            // using global variable:
+            map.panTo(center);
+            console.log(newCoords);
+          }
+        });
+
+
+
+        if(isController){
+          var alpha = document.getElementById("alpha");
+          var beta = document.getElementById("beta");
+          var gamma = document.getElementById("gamma");
+
+          gyro.frequency = 200
+          gyro.startTracking(function(o) {
+            var gyroValues = {};
+            gyroValues.alpha = truncate(o.alpha,digits);
+            gyroValues.beta = truncate(o.beta,digits);
+            gyroValues.gamma = truncate(o.gamma,digits);
+            showValue(alpha,gyroValues.alpha);
+            showValue(beta,gyroValues.beta);
+            showValue(gamma,gyroValues.gamma);
+
+            var betaDiff = gyroValues.beta - 0;
+            var gammaDiff = gyroValues.gamma - 0;
+
+            coords = {lat: coords.lat - betaDiff*.01, lng: coords.lng + gammaDiff*.01}
+            client.publish("mqttMapDemo-" + deviceKey, JSON.stringify(coords));
+          });
+        }
+      }
+
+      var showValue = function(element,value){
+        element.innerHTML = value;
+      }
+
+      var truncate = function(value,digits){
+        var power = 10^digits;
+        return Math.round(value * power) / power;
+      }
+
+      var setGyroBase = function(){
+        var base = gyro.getOrientation()
+        gyroBase.alpha = base.alpha;
+        gyroBase.beta = base.beta;
+        gyroBase.gamma = base.gamma;
+      }
+
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: coords,
+          zoom: 8
+        });
+      }
+    }, false );
+
+    </script>
+    <script async defer
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMl3SsOt0rCxc2ckPYGmgZ2P2Xthm1rp0">
+    </script>
+    <script src="mqtt.js"></script>
+    <script src="gyro.min.js"></script>
+  </body>
+</html>
