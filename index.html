@@ -35,9 +35,25 @@
         font-size: 24px;
         border-bottom: 3px solid rgba(255,255,255,.5);
         color: white;
+        box-sizing: border-box;
+        overflow: hidden;
       }
       input:focus{
           outline: none;
+      }
+      #zoomControl {
+        margin-top: 20px;
+      }
+      #zoomControl h2 {
+        margin: 10px auto;
+      }
+      .zoomButton {
+        font-size: 80px;
+        margin: 0px 15px;
+        cursor: pointer;
+      }
+      .zoomButton:active{
+        color: rgba(255,255,255,.7);
       }
       .option {
         margin: 10px;
@@ -48,27 +64,33 @@
       .hidden {
         display: none;
       }
+      .noselect {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
     </style>
   </head>
-  <body>
+  <body class="noselect" ontouchstart>
     <div id="map"></div>
     <div id="welcome">
+      <h1>Map Flyer</h1>
       <div id="start">
-        <div class="message">Use your phone to control the map on your computer. Select which one this device will be to start! <br/> Use the same key on both devices.</div>
-        <input id="deviceKey" placeholder="Your Key"></input>
+        <div class="message">Tilt your phone to control the map on your computer. Select which one this device will be to start! <br/> *Use the same key on both devices.</div>
+        <input id="deviceKey" type="text" placeholder="Your Key"></input>
         <div id="keyError" class="message hidden">Please enter some key above!</div>
         <div id="becomeMap" class="option">I will be the map <i class="fa fa-chevron-right"></i></div>
         <div id="becomeControl" class="option">I will be the controller <i class="fa fa-chevron-right"></i></div>
       </div>
       <div id="controller">
         <div class="message">Move your phone around to navigate the map!</div>
-        <div>
-          <span>Up/Down: </span>
-          <span id="beta"></span>
-        </div>
-        <div>
-          <span>Left/Right: </span>
-          <span id="gamma"></span>
+        <div id="zoomControl">
+          <h2>Zoom Control</h2>
+          <span id="zoomOUT" class="zoomButton"><i class="fa fa-minus-square"></i></span>
+          <span id="zoomIN" class="zoomButton"><i class="fa fa-plus-square"></i></span>
         </div>
       </div>
     </div>
@@ -76,13 +98,16 @@
 
     document.addEventListener( 'DOMContentLoaded', function () {
       var keyPrefix = "mqttMapDemo-";
-      var device ;
-
+      var device;
+      var coordsAppend = "-coords";
+      var zoomAppend = "-zoom";
+      var zoomLevelAppend = "-zoomLevel";
+      var zoomLevelRequestAppend = "-zoomLevelRequest";
 
       document.getElementById("becomeMap").addEventListener("click", function(){
         var deviceKey = document.getElementById("deviceKey").value;
         if(deviceKey != ""){
-          device = new MapDevice(keyPrefix + deviceKey,document.getElementById("map"));
+          device = new MapDevice(keyPrefix + deviceKey, coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, document.getElementById("map"));
           document.getElementById("welcome").style.display = "none";
         } else {
           document.getElementById("keyError").style.display = "block";
@@ -93,15 +118,19 @@
         if(deviceKey != ""){
           document.getElementById("start").style.display = "none";
           document.getElementById("controller").style.display = "block";
-          device = new ControllerDevice(keyPrefix + deviceKey, document.getElementById("beta"), document.getElementById("gamma"));
+          device = new ControllerDevice(keyPrefix + deviceKey, coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, document.getElementById("beta"), document.getElementById("gamma"));
         } else {
           document.getElementById("keyError").style.display = "block";
         }
       });
 
-      var ControllerDevice = function(deviceKey,betaDOM,gammaDOM){
+      var ControllerDevice = function(deviceKey,coordsAppend,zoomAppend,zoomLevelAppend,zoomLevelRequestAppend,betaDOM,gammaDOM){
 
         this.deviceKey = deviceKey;
+        this.coordsAppend = coordsAppend;
+        this.zoomAppend = zoomAppend;
+        this.zoomLevelAppend = zoomLevelAppend;
+        this.zoomLevelRequestAppend = zoomLevelRequestAppend;
         this.betaDOM = betaDOM;
         this.gammaDOM = gammaDOM;
 
@@ -109,25 +138,39 @@
         this.digits = 2;
         this.gyroValues = {};
         this.gyroFreq = 200;
+        this.zoom = 8;
+        this.latLngAdjust = Math.pow(10, -this.zoom/4);
         this.client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
+        this.client.on('connect', function () {
+          that.client.subscribe(that.deviceKey+that.zoomLevelAppend);
+          that.client.publish(that.deviceKey+that.zoomLevelRequestAppend, "requesting...");
+        });
+        this.client.on('message', function (topic, message) {
+          var messageString = message.toString();
+          if(topic == that.deviceKey+that.zoomLevelAppend){
+            that.zoom = JSON.parse(messageString).zoomLevel;
+            that.latLngAdjust = Math.pow(10, -that.zoom/4);
+          }
+        });
 
         gyro.frequency = this.gyroFreq;
         gyro.startTracking(function(o) {
           that.gyroValues.beta = parseInt(o.beta).toFixed(that.digits);
           that.gyroValues.gamma = parseInt(o.gamma).toFixed(that.digits);
-          that.showValue(that.betaDOM,that.gyroValues.beta);
-          that.showValue(that.gammaDOM,that.gyroValues.gamma);
 
-          var betaDiff = (0 - that.gyroValues.beta)*0.01;
-          var gammaDiff = (that.gyroValues.gamma - 0)*0.01;
+          var betaDiff = (0 - that.gyroValues.beta)*that.latLngAdjust;
+          var gammaDiff = (that.gyroValues.gamma - 0)*that.latLngAdjust;
 
           var diff = {latDiff: betaDiff, lngDiff: gammaDiff};
-          that.client.publish(that.deviceKey, JSON.stringify(diff));
+          that.client.publish(that.deviceKey+that.coordsAppend, JSON.stringify(diff));
         });
 
-        this.showValue = function(element,value){
-          element.innerHTML = value;
-        }
+        document.getElementById("zoomOUT").addEventListener("click", function(){
+          that.client.publish(that.deviceKey+that.zoomAppend, JSON.stringify({zoomDiff: -1}));
+        });
+        document.getElementById("zoomIN").addEventListener("click", function(){
+          that.client.publish(that.deviceKey+that.zoomAppend, JSON.stringify({zoomDiff: 1}));
+        });
 
         this.truncate = function(value,digits){
           return value.toFixed(digits);
@@ -135,23 +178,48 @@
 
       }
 
-      var MapDevice = function(deviceKey,mapDOM){
+      var MapDevice = function(deviceKey,coordsAppend,zoomAppend,zoomLevelAppend,zoomLevelRequestAppend,mapDOM){
 
         this.deviceKey = deviceKey;
+        this.coordsAppend = coordsAppend;
+        this.zoomAppend = zoomAppend;
+        this.zoomLevelAppend = zoomLevelAppend;
+        this.zoomLevelRequestAppend = zoomLevelRequestAppend;
         this.mapDOM = mapDOM;
 
         var that = this;
         this.zoom = 8;
         this.client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
         this.client.on('connect', function () {
-          that.client.subscribe(that.deviceKey);
+          that.client.subscribe(that.deviceKey+that.coordsAppend);
+          that.client.subscribe(that.deviceKey+that.zoomAppend);
+          that.client.subscribe(that.deviceKey+that.zoomLevelRequestAppend);
         });
         this.client.on('message', function (topic, message) {
           var messageString = message.toString();
-          var coordDiff = JSON.parse(messageString);
-          var currentCoords = that.map.getCenter();
-          var center = new google.maps.LatLng(currentCoords.lat() + coordDiff.latDiff, currentCoords.lng() + coordDiff.lngDiff);
-          that.map.panTo(center);
+          if(topic == that.deviceKey+that.coordsAppend){
+            var coordDiff = JSON.parse(messageString);
+            var currentCoords = that.map.getCenter();
+            var center = new google.maps.LatLng(currentCoords.lat() + coordDiff.latDiff, currentCoords.lng() + coordDiff.lngDiff);
+            that.map.panTo(center);
+          }
+          if(topic == that.deviceKey+that.zoomAppend){
+            var zoomChange = JSON.parse(messageString);
+            var currentZoom = that.map.getZoom();
+            var newZoom = zoomChange.zoomDiff + currentZoom;
+            if(newZoom > 20){
+              newZoom = 20;
+            }
+            if(newZoom < 0){
+              newZoom = 0;
+            }
+            that.zoom = newZoom;
+            that.map.setZoom(that.zoom);
+            that.client.publish(that.deviceKey+that.zoomLevelAppend, JSON.stringify({zoomLevel: that.zoom}));
+          }
+          if(topic == that.deviceKey+that.zoomLevelRequestAppend){
+            that.client.publish(that.deviceKey+that.zoomLevelAppend, JSON.stringify({zoomLevel: that.map.getZoom()}));
+          }
         });
 
         if(navigator.geolocation){
@@ -161,6 +229,7 @@
               center: initCoords,
               zoom: that.zoom
             });
+            // google.maps.event.addListener(that.map, 'zoom_changed', that.notifyZoom());
           });
         } else {
           var initCoords = {lat: 37.775493, lng: -122.403700}; //San Francisco
@@ -168,6 +237,13 @@
             center: initCoords,
             zoom: that.zoom
           });
+          // google.maps.event.addListener(that.map, 'zoom_changed', that.notifyZoom());
+        }
+
+        this.notifyZoom = function() {
+            var currentZoom = that.map.getZoom();
+            that.zoom = currentZoom;
+            that.client.publish(that.deviceKey+that.zoomLevelAppend, JSON.stringify({zoomLevel: that.zoom}));
         }
       }
 
