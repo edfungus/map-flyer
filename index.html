@@ -14,7 +14,7 @@
         top: 0;
         width: 100%;
         color: white;
-        padding: 100px 20px 20px 10px;
+        padding: 80px 20px 20px 10px;
         box-sizing: border-box;
         text-align: center;
         overflow: auto;
@@ -22,10 +22,18 @@
       #controller {
         display: none;
       }
+      #more {
+        margin-top: 40px;
+      }
       .message {
         font-size: 18px;
         font-weight: 100;
         margin-bottom: 20px;
+      }
+      .small {
+        color: rgba(255,255,255,.6);
+        text-decoration: none;
+        font-size: 14px;
       }
       #deviceKey {
         border: none;
@@ -69,9 +77,21 @@
         -ms-user-select: none;
         user-select: none;
       }
+      .fb-share-button.fb_iframe_widget {
+        display: inline-flex;
+      }
     </style>
   </head>
   <body class="noselect" ontouchstart>
+    <div id="fb-root"></div>
+    <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+    <script>(function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) return;
+      js = d.createElement(s); js.id = id;
+      js.src = "//connect.facebook.net/en_US/sdk.js#xfbml=1&version=v2.5";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));</script>
     <div id="map"></div>
     <div id="welcome">
       <h1>Map Flyer</h1>
@@ -89,6 +109,11 @@
           <span id="zoomOUT" class="zoomButton"><i class="fa fa-minus-square"></i></span>
           <span id="zoomIN" class="zoomButton"><i class="fa fa-plus-square"></i></span>
         </div>
+      </div>
+      <div id="more">
+        <a href="https://twitter.com/share" class="twitter-share-button"{count} data-text="Tilt your phone to navigate maps on a different device!" data-hashtags="mapflyer">Tweet</a>
+        <div class="fb-share-button" data-href="http://edfungus.github.io/map-flyer/" data-layout="button"></div>
+        <div class="message small"><a class="small" href="https://twitter.com/edfungus">@edfungus</a> | <a class="small" href="https://github.com/edfungus/map-flyer">learn more</a></div>
       </div>
     </div>
     <script type="text/javascript">
