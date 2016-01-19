@@ -63,128 +63,115 @@
       <div id="controller">
         <div class="message">Move your phone around to navigate the map!</div>
         <div>
-          <span>Plane: </span>
-          <span id="alpha"></span>
-        </div>
-        <div>
-          <span>Pitch: </span>
+          <span>Up/Down: </span>
           <span id="beta"></span>
         </div>
         <div>
-          <span>Yaw: </span>
+          <span>Left/Right: </span>
           <span id="gamma"></span>
         </div>
-        <div id="setGyro" class="option">Reset zero at current position</div>
       </div>
     </div>
     <script type="text/javascript">
 
     document.addEventListener( 'DOMContentLoaded', function () {
-      var map;
-      var coords = {lat: -34.397, lng: 150.644};
-      var client;
-      var isController;
-      var deviceKey;
-      var gyroBase = {};
-      var digits = 5;
+      var keyPrefix = "mqttMapDemo-";
+      var device ;
 
 
       document.getElementById("becomeMap").addEventListener("click", function(){
-        if(document.getElementById("deviceKey").value != ""){
-          initMap();
-          isController = false;
-          deviceKey = document.getElementById("deviceKey").value;
-          init();
+        var deviceKey = document.getElementById("deviceKey").value;
+        if(deviceKey != ""){
+          device = new MapDevice(keyPrefix + deviceKey,document.getElementById("map"));
           document.getElementById("welcome").style.display = "none";
         } else {
           document.getElementById("keyError").style.display = "block";
         }
       });
       document.getElementById("becomeControl").addEventListener("click", function(){
-        if(document.getElementById("deviceKey").value != ""){
-          isController = true;
-          deviceKey = document.getElementById("deviceKey").value;
-          init();
+        var deviceKey = document.getElementById("deviceKey").value;
+        if(deviceKey != ""){
           document.getElementById("start").style.display = "none";
           document.getElementById("controller").style.display = "block";
-          setGyroBase();
+          device = new ControllerDevice(keyPrefix + deviceKey, document.getElementById("beta"), document.getElementById("gamma"));
         } else {
           document.getElementById("keyError").style.display = "block";
         }
       });
-      document.getElementById("setGyro").addEventListener("click", function(){
-        setGyroBase();
-      });
 
-      function init(){
-        client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
+      var ControllerDevice = function(deviceKey,betaDOM,gammaDOM){
 
-        client.on('connect', function () {
-          if(!isController){
-            client.subscribe("mqttMapDemo-" + deviceKey);
-          }
-          console.log("connected");
+        this.deviceKey = deviceKey;
+        this.betaDOM = betaDOM;
+        this.gammaDOM = gammaDOM;
+
+        var that = this;
+        this.digits = 2;
+        this.gyroValues = {};
+        this.gyroFreq = 200;
+        this.client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
+
+        gyro.frequency = this.gyroFreq;
+        gyro.startTracking(function(o) {
+          that.gyroValues.beta = parseInt(o.beta).toFixed(that.digits);
+          that.gyroValues.gamma = parseInt(o.gamma).toFixed(that.digits);
+          that.showValue(that.betaDOM,that.gyroValues.beta);
+          that.showValue(that.gammaDOM,that.gyroValues.gamma);
+
+          var betaDiff = (0 - that.gyroValues.beta)*0.01;
+          var gammaDiff = (that.gyroValues.gamma - 0)*0.01;
+
+          var diff = {latDiff: betaDiff, lngDiff: gammaDiff};
+          that.client.publish(that.deviceKey, JSON.stringify(diff));
         });
-        client.on('message', function (topic, message) {
-          if(!isController){
-            var messageString = message.toString();
-            var newCoords = JSON.parse(messageString);
-            var center = new google.maps.LatLng(newCoords.lat, newCoords.lng);
-            // using global variable:
-            map.panTo(center);
-            console.log(newCoords);
-          }
+
+        this.showValue = function(element,value){
+          element.innerHTML = value;
+        }
+
+        this.truncate = function(value,digits){
+          return value.toFixed(digits);
+        }
+
+      }
+
+      var MapDevice = function(deviceKey,mapDOM){
+
+        this.deviceKey = deviceKey;
+        this.mapDOM = mapDOM;
+
+        var that = this;
+        this.zoom = 8;
+        this.client = mqtt.connect({port: 8080, host: "test.mosquitto.org"});
+        this.client.on('connect', function () {
+          that.client.subscribe(that.deviceKey);
+        });
+        this.client.on('message', function (topic, message) {
+          var messageString = message.toString();
+          var coordDiff = JSON.parse(messageString);
+          var currentCoords = that.map.getCenter();
+          var center = new google.maps.LatLng(currentCoords.lat() + coordDiff.latDiff, currentCoords.lng() + coordDiff.lngDiff);
+          that.map.panTo(center);
         });
 
-
-
-        if(isController){
-          var alpha = document.getElementById("alpha");
-          var beta = document.getElementById("beta");
-          var gamma = document.getElementById("gamma");
-
-          gyro.frequency = 200
-          gyro.startTracking(function(o) {
-            var gyroValues = {};
-            gyroValues.alpha = truncate(o.alpha,digits);
-            gyroValues.beta = truncate(o.beta,digits);
-            gyroValues.gamma = truncate(o.gamma,digits);
-            showValue(alpha,gyroValues.alpha);
-            showValue(beta,gyroValues.beta);
-            showValue(gamma,gyroValues.gamma);
-
-            var betaDiff = gyroValues.beta - 0;
-            var gammaDiff = gyroValues.gamma - 0;
-
-            coords = {lat: coords.lat - betaDiff*.01, lng: coords.lng + gammaDiff*.01}
-            client.publish("mqttMapDemo-" + deviceKey, JSON.stringify(coords));
+        if(navigator.geolocation){
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var initCoords = {lat: position.coords.latitude, lng: position.coords.longitude};
+            that.map = new google.maps.Map(that.mapDOM, {
+              center: initCoords,
+              zoom: that.zoom
+            });
+          });
+        } else {
+          var initCoords = {lat: 37.775493, lng: -122.403700}; //San Francisco
+          this.map = new google.maps.Map(this.mapDOM, {
+            center: initCoords,
+            zoom: that.zoom
           });
         }
       }
 
-      var showValue = function(element,value){
-        element.innerHTML = value;
-      }
-
-      var truncate = function(value,digits){
-        var power = 10^digits;
-        return Math.round(value * power) / power;
-      }
-
-      var setGyroBase = function(){
-        var base = gyro.getOrientation()
-        gyroBase.alpha = base.alpha;
-        gyroBase.beta = base.beta;
-        gyroBase.gamma = base.gamma;
-      }
-
-      function initMap() {
-        map = new google.maps.Map(document.getElementById('map'), {
-          center: coords,
-          zoom: 8
-        });
-      }
-    }, false );
+    });
 
     </script>
     <script async defer
