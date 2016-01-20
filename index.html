@@ -150,7 +150,7 @@
       document.getElementById("becomeMap").addEventListener("click", function(){
         var deviceKey = document.getElementById("deviceKey").value;
         if(deviceKey != ""){
-          device = new MapDevice(keyPrefix + deviceKey, coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, map, document.getElementById("map"));
+          device = new MapDevice(createDeviceKey(deviceKey,keyPrefix), coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, map, document.getElementById("map"));
           document.getElementById("welcome").style.display = "none";
         } else {
           document.getElementById("keyError").style.display = "block";
@@ -161,7 +161,7 @@
         if(deviceKey != ""){
           document.getElementById("start").style.display = "none";
           document.getElementById("controller").style.display = "block";
-          device = new ControllerDevice(keyPrefix + deviceKey, coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, document.getElementById("beta"), document.getElementById("gamma"));
+          device = new ControllerDevice(createDeviceKey(deviceKey,keyPrefix), coordsAppend, zoomAppend, zoomLevelAppend, zoomLevelRequestAppend, document.getElementById("beta"), document.getElementById("gamma"));
         } else {
           document.getElementById("keyError").style.display = "block";
         }
@@ -283,6 +283,12 @@
             zoom: that.zoom
           });
         }
+      }
+
+      var createDeviceKey = function(string, prefix){
+        var p = prefix || "";
+        var deviceKey = p + string;
+        return deviceKey.toLowerCase();
       }
 
     });
