@@ -14,7 +14,7 @@
         top: 0;
         width: 100%;
         color: white;
-        padding: 80px 20px 20px 10px;
+        padding: 50px 20px 20px 20px;
         box-sizing: border-box;
         text-align: center;
         overflow: auto;
@@ -25,8 +25,11 @@
       #more {
         margin-top: 40px;
       }
+      #instructionTitle {
+        margin-top: 50px;
+      }
       .message {
-        font-size: 18px;
+        font-size: 32px;
         font-weight: 100;
         margin-bottom: 20px;
       }
@@ -35,11 +38,14 @@
         text-decoration: none;
         font-size: 14px;
       }
+      .normalWeight {
+        font-weight: 300;
+      }
       #deviceKey {
         border: none;
         background-color: rgba(255,525,255,.1);
         padding: 5px;
-        font-size: 24px;
+        font-size: 20px;
         border-bottom: 3px solid rgba(255,255,255,.5);
         color: white;
       }
@@ -63,7 +69,7 @@
       .option {
         margin: 10px;
         cursor: pointer;
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 700;
       }
       .hidden {
@@ -96,11 +102,15 @@
     <div id="welcome">
       <h1>Map Flyer</h1>
       <div id="start">
-        <div class="message">Tilt your phone to control the map on your computer! Use the same code on both devices.</div>
-        <input id="deviceKey" type="text" placeholder="Your code"></input>
+        <div class="message">Tilt your phone to control the map on your computer! Visit this page on both devices.</div>
+        <div id="instructionTitle" class="option">Instructions:</div>
+        <div class="option">1. <span class="normalWeight">Pick a name for your phone and computer!</span></div>
+        <input id="deviceKey" type="text" placeholder="e.g. corgis<3"></input>
+        <div id="keyError" class="small">(use the same name on both devices)</div>
         <div id="keyError" class="message hidden">Please enter some key above!</div>
-        <div id="becomeMap" class="option">I will be the map <i class="fa fa-chevron-right"></i></div>
-        <div id="becomeControl" class="option">I will be the controller <i class="fa fa-chevron-right"></i></div>
+        <div class="option">2. <span class="normalWeight">I am the ... </span></div>
+        <div id="becomeMap" class="option">computer <i class="fa fa-chevron-right"></i></div>
+        <div id="becomeControl" class="option">phone <i class="fa fa-chevron-right"></i></div>
       </div>
       <div id="controller">
         <div class="message">Move your phone around to navigate the map!</div>
